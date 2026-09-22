@@ -366,7 +366,7 @@
   renderChips();
 
   let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBar').classList.add('show')});$('installBtn').onclick=async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt=null;$('installBar').classList.remove('show')};
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=4').catch(()=>{});
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=5').catch(()=>{});
   if(location.protocol==='file:') notice('이 파일을 더블클릭해 여는 것보다 GitHub Pages 같은 HTTPS 사이트에 올려 사용하세요. 위치 기능과 설치 기능이 안정적으로 동작합니다.');
   if(!CONFIG.KAKAO_JS_KEY || CONFIG.KAKAO_JS_KEY==='YOUR_KAKAO_JAVASCRIPT_KEY'){
     notice('처음 한 번만 카카오 JavaScript 키를 설정하면 됩니다. README의 배포 설정을 따라 주세요.');
