@@ -233,7 +233,7 @@
     if(!state.ps||state.lat==null)return;
     clearNotice();
     const location=new kakao.maps.LatLng(state.lat,state.lng);
-    const sortDistance=(kakao.maps.services.SortBy&&kakao.maps.services.SortBy.DISTANCE)?kakao.maps.services.SortBy.DISTANCE:'distance';
+    const sortDistance='distance';
     const opts={location,radius:Math.min(Math.max(Number(state.radius)||2000,100),20000),sort:sortDistance,size:15};
     const q=$('query').value.trim();
     if(q){
@@ -247,12 +247,14 @@
     state.searchQuery=keywordMap[state.category]||'음식점';
     state.ps.keywordSearch(state.searchQuery,cb,opts);
   }
-  function cb(data,status,pagination){
-    if(status!==kakao.maps.services.Status.OK){
-      if(status===kakao.maps.services.Status.ZERO_RESULT){state.results=[];renderResults();return;}
-      notice('카카오 장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-      return;
-    }
+  function distanceMeters(lat1,lng1,lat2,lng2){
+    const R=6371000, toRad=v=>v*Math.PI/180;
+    const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+    const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+    return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  function filterSearchRows(data){
     let rows=Array.isArray(data)?data:[];
     const wanted=state.searchMode==='category'?state.category:null;
     rows=rows.filter(p=>{
@@ -260,16 +262,46 @@
       const cat=String(p.category_name||'');
       if(state.searchMode==='direct') return code==='FD6'||code==='CE7';
       if(wanted==='CE7') return code==='CE7'||/카페|커피|베이커리/.test(cat);
-      if(wanted==='FD6') return code==='FD6'||/음식|한식|고기|일식|중식|치킨|분식|식당|요리/.test(cat);
-      return code==='FD6';
+      return code==='FD6'||/음식|한식|고기|일식|중식|치킨|분식|식당|요리/.test(cat);
     });
-    state.results=rows;
-    scoreAndSort();
-    renderResults();
-    clearMarkers();
-    drawUser();
-    state.results.slice(0,15).forEach(addMarker);
-    if(state.results.length)state.map.setCenter(new kakao.maps.LatLng(state.lat,state.lng));
+    rows=rows.map(p=>{
+      const d=(p.distance!==undefined&&p.distance!=='')?Number(p.distance):distanceMeters(state.lat,state.lng,Number(p.y),Number(p.x));
+      return Object.assign({},p,{distance:d});
+    });
+    return rows.filter(p=>Number(p.distance)<=Number(state.radius)||!Number.isFinite(Number(p.distance)));
+  }
+
+  function cb(data,status,pagination){
+    if(status===kakao.maps.services.Status.OK){
+      state.searchAttempts=0;
+      state.results=filterSearchRows(data);
+      scoreAndSort();
+      renderResults();
+      clearMarkers();
+      drawUser();
+      state.results.slice(0,15).forEach(addMarker);
+      if(state.results.length)state.map.setCenter(new kakao.maps.LatLng(state.lat,state.lng));
+      return;
+    }
+    if(status===kakao.maps.services.Status.ZERO_RESULT){
+      state.results=[];
+      renderResults();
+      return;
+    }
+    if(status===kakao.maps.services.Status.ERROR){
+      const attempt=Number(state.searchAttempts||0);
+      if(attempt===0){
+        state.searchAttempts=1;
+        state.ps.keywordSearch(state.searchQuery,cb,{location:new kakao.maps.LatLng(state.lat,state.lng),size:15});
+        return;
+      }
+      if(attempt===1){
+        state.searchAttempts=2;
+        state.ps.keywordSearch(state.searchQuery,cb,{size:15});
+        return;
+      }
+    }
+    notice('카카오 장소 검색에 실패했습니다. 카카오 JavaScript 키의 웹 도메인 설정 또는 일시적인 API 오류를 확인해 주세요.');
   }
   function renderResults(){
     const list=$('list');
