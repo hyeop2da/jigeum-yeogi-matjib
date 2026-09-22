@@ -30,7 +30,7 @@
     @media(max-width:820px){.layout{grid-template-columns:1fr}.list{max-height:none}#map{height:360px}.listwrap{order:2}.mapwrap{order:1}}
   </style>
 </head>
-<body data-app-version="2026-09-22-review-v11">
+<body data-app-version="2026-09-22-review-v12">
 <div class="app">
   <header class="top">
     <div class="brand"><div class="logo">🍜</div><div><h1>지금 여기 맛집</h1><p class="sub">현재 위치에서 가까우면서 검색 조건에 잘 맞는 추천 후보를 찾아요.</p></div></div>
@@ -81,13 +81,13 @@
   function mapsReviewUrl(place){
     const id=String(place.id||'').trim();
     if(id){
-      return 'https://place.map.kakao.com/m/'+encodeURIComponent(id)+'#comment?service=search_m';
+      return 'https://place.map.kakao.com/m/'+encodeURIComponent(id)+'?service=search_m#comment';
     }
     const source=String(place.place_url||'').trim();
     if(source){
       const clean=source.replace(/^https?:\/\//,'').replace(/^place\.map\.kakao\.com\//,'');
       const match=clean.match(/^(?:m\/)?(\d+)/);
-      if(match) return 'https://place.map.kakao.com/m/'+match[1]+'#comment?service=search_m';
+      if(match) return 'https://place.map.kakao.com/m/'+match[1]+'?service=search_m#comment';
       return source.split('#')[0]+'#comment?service=search_m';
     }
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
