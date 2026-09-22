@@ -152,9 +152,9 @@
     return '';
   }
   function proxyUrl(){
-    const configured=String(CONFIG.KAKAO_PROXY_URL||'').trim().replace(/\\/$/,'');
+    const configured=String(CONFIG.KAKAO_PROXY_URL||'').trim().replace(/\/$/,'');
     if(configured) return configured;
-    if(/(^|\\.)netlify\\.app$/i.test(location.hostname)) return location.origin+'/api/kakao-ratings';
+    if(/(^|\.)netlify\.app$/i.test(location.hostname)) return location.origin+'/api/kakao-ratings';
     return '';
   }
 
