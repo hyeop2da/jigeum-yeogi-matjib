@@ -88,7 +88,7 @@
       const clean=source.replace(/^https?:\/\//,'').replace(/^place\.map\.kakao\.com\//,'');
       const match=clean.match(/^(?:m\/)?(\d+)/);
       if(match) return 'https://place.map.kakao.com/m/'+match[1]+'?service=search_m#comment';
-      return source.split('#')[0]+'#comment?service=search_m';
+      return source.split('#')[0]+'?service=search_m#comment';
     }
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
   }
