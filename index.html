@@ -79,8 +79,12 @@
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
   }
   function mapsReviewUrl(place){
-    // 카카오 Local API가 제공하는 현재 place_url을 그대로 기준으로 후기 섹션 앵커를 붙입니다.
-    // /m/{id}?service=search_m 같은 비공식/구형 경로는 사용하지 않습니다.
+    const id=String(place.id||'').trim();
+    if(id){
+      // 카카오맵 모바일 스킴의 장소 페이지에 후기 화면을 여는 openpage 파라미터를 사용합니다.
+      // 일반 place.map.kakao.com#comment는 SPA에서 앵커가 무시되는 경우가 있습니다.
+      return 'https://m.map.kakao.com/scheme/place?id='+encodeURIComponent(id)+'&openpage=review';
+    }
     const source=String(place.place_url||'').trim();
     if(source){
       try{
@@ -91,8 +95,6 @@
         return source.split('#')[0]+'#comment';
       }
     }
-    const id=String(place.id||'').trim();
-    if(id) return 'https://place.map.kakao.com/'+encodeURIComponent(id)+'#comment';
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
   }
 
