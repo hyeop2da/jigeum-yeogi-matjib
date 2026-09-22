@@ -1,4 +1,4 @@
-const CACHE='jigeum-yeogi-matjib-v14';
+const CACHE='jigeum-yeogi-matjib-v15';
 const ASSETS=['./','./index.html','./manifest.json','./config.js'];
 self.addEventListener('install',e=>e.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
