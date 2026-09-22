@@ -377,8 +377,12 @@
 
   let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBar').classList.add('show')});$('installBtn').onclick=async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt=null;$('installBar').classList.remove('show')};
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
-    if(window.caches) caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))).catch(()=>{});
+    Promise.all([
+      navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))),
+      window.caches ? caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))) : Promise.resolve()
+    ]).finally(()=>{
+      navigator.serviceWorker.register('./sw.js?v=8',{updateViaCache:'none'}).catch(()=>{});
+    });
   }
   if(location.protocol==='file:') notice('이 파일을 더블클릭해 여는 것보다 GitHub Pages 같은 HTTPS 사이트에 올려 사용하세요. 위치 기능과 설치 기능이 안정적으로 동작합니다.');
   if(!CONFIG.KAKAO_JS_KEY || CONFIG.KAKAO_JS_KEY==='YOUR_KAKAO_JAVASCRIPT_KEY'){
