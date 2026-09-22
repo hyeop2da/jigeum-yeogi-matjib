@@ -17,7 +17,7 @@
     .brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;border-radius:15px;background:#fff;display:grid;place-items:center;font-size:24px;box-shadow:0 6px 18px rgba(0,0,0,.15)}
     h1{margin:0;font-size:23px;letter-spacing:-.5px}.sub{margin:6px 0 0;color:#d1d5db;font-size:13px}
     .hero{margin-top:18px;display:grid;gap:10px}.search{display:flex;background:#fff;border-radius:16px;padding:6px;box-shadow:var(--shadow)}.search input{flex:1;border:0;outline:0;padding:12px 12px;color:var(--text);min-width:0}.search button{border:0;border-radius:12px;background:var(--accent);color:#fff;padding:0 16px;font-weight:700}
-    .locationbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.locbtn{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.09);color:#fff;padding:9px 12px;border-radius:12px;cursor:pointer}.locstate{font-size:13px;color:#e5e7eb}
+    .locationbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.locbtn{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.09);color:#fff;padding:9px 12px;border-radius:12px;cursor:pointer}.locsearch{flex:1;min-width:220px;max-width:420px;border:1px solid rgba(255,255,255,.2);background:#fff;color:var(--text);padding:9px 12px;border-radius:12px;outline:0}.locstate{font-size:13px;color:#e5e7eb}
     .content{padding:16px 18px 34px}.notice{display:none;padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:14px;margin-bottom:12px;font-size:13px}.notice.show{display:block}
     .toolbar{display:grid;gap:10px;margin-bottom:14px}.chips{display:flex;gap:7px;overflow:auto;padding-bottom:2px}.chip{white-space:nowrap;border:1px solid var(--line);background:#fff;color:#374151;border-radius:999px;padding:9px 12px;cursor:pointer}.chip.active{background:#111827;color:#fff;border-color:#111827}
     .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted)}.meta select{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;color:#374151}
@@ -36,7 +36,7 @@
     <div class="brand"><div class="logo">🍜</div><div><h1>지금 여기 맛집</h1><p class="sub">현재 위치에서 가까우면서 검색 조건에 잘 맞는 추천 후보를 찾아요.</p></div></div>
     <div class="hero">
       <div class="search"><input id="query" placeholder="메뉴나 음식점 검색 · 예: 삼겹살, 국밥" autocomplete="off" /><button id="searchBtn">찾기</button></div>
-      <div class="locationbar"><button class="locbtn" id="locBtn">📍 현재 위치 사용</button><span class="locstate" id="locState">위치 권한을 허용하면 주변 검색이 시작됩니다.</span></div>
+      <div class="locationbar"><button class="locbtn" id="locBtn">📍 현재 위치 사용</button><input id="locationQuery" class="locsearch" placeholder="지역·주소·역 검색 (예: 강남역, 성수동)" autocomplete="off" /><button class="locbtn" id="locationSearchBtn">이 위치 찾기</button><span class="locstate" id="locState">현재 위치 또는 원하는 지역을 지정할 수 있습니다.</span></div>
     </div>
   </header>
 
@@ -88,20 +88,36 @@
   }
   function ensureMap(){
     if(state.map) return;
-    if(!CONFIG.KAKAO_JS_KEY || CONFIG.KAKAO_JS_KEY==='YOUR_KAKAO_JAVASCRIPT_KEY'){notice('카카오 JavaScript 키가 아직 설정되지 않았습니다. README의 2단계부터 설정해 주세요.');return;}
+    if(!CONFIG.KAKAO_JS_KEY || CONFIG.KAKAO_JS_KEY==='YOUR_KAKAO_JAVASCRIPT_KEY'){
+      notice('카카오 JavaScript 키가 설정되지 않았습니다.');
+      return;
+    }
     if(!window.kakao){
       const script=document.getElementById('kakao-map-loader');
       script.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(CONFIG.KAKAO_JS_KEY)+'&libraries=services&autoload=false';
       script.onload=()=>ensureMap();
-      script.onerror=()=>notice('카카오 지도 SDK를 불러오지 못했습니다. 인터넷 연결과 JavaScript 키 설정을 확인해 주세요.');
+      script.onerror=()=>notice('카카오 지도 SDK를 불러오지 못했습니다. 카카오 JavaScript 키와 웹 도메인 설정을 확인해 주세요.');
+      return;
+    }
+    if(!kakao.maps || !kakao.maps.load){
+      notice('카카오 지도 SDK가 정상적으로 초기화되지 않았습니다.');
       return;
     }
     kakao.maps.load(function(){
       const center=new kakao.maps.LatLng(state.lat||37.5665,state.lng||126.9780);
       state.map=new kakao.maps.Map($('map'),{center,level:5});
       state.ps=new kakao.maps.services.Places();
+      state.geocoder=new kakao.maps.services.Geocoder();
+      kakao.maps.event.addListener(state.map,'click',function(mouseEvent){
+        const p=mouseEvent.latLng;
+        state.lat=p.getLat();
+        state.lng=p.getLng();
+        $('locState').textContent='지도에서 선택한 위치';
+        drawUser();
+        search();
+      });
       if(state.lat) drawUser();
-      search();
+      if(state.lat) search();
     });
   }
   function drawUser(){
@@ -173,74 +189,81 @@
     }
   }
 
+  function setSearchCenter(lat,lng,label){
+    state.lat=Number(lat);
+    state.lng=Number(lng);
+    $('locState').textContent=label||'검색 위치 설정 완료';
+    ensureMap();
+    setTimeout(()=>{drawUser();search();},0);
+  }
+
+  function locationResultCallback(data,status){
+    if(status===kakao.maps.services.Status.OK && data && data.length){
+      const p=data[0];
+      setSearchCenter(p.y,p.x,(p.place_name||'검색 위치')+' 기준');
+      $('locationQuery').value=p.place_name||$('locationQuery').value;
+      return;
+    }
+    if(state.geocoder){
+      state.geocoder.addressSearch($('locationQuery').value.trim(),function(result,addressStatus){
+        if(addressStatus===kakao.maps.services.Status.OK && result && result.length){
+          const p=result[0];
+          setSearchCenter(p.y,p.x,(p.address_name||'검색 위치')+' 기준');
+          return;
+        }
+        notice('입력한 지역을 찾지 못했습니다. 예: 강남역, 서울역, 성수동, 도로명주소');
+      });
+    }else{
+      notice('위치 검색을 초기화하지 못했습니다.');
+    }
+  }
+
+  function findLocation(){
+    const q=$('locationQuery').value.trim();
+    if(!q){notice('찾을 지역이나 주소를 입력해 주세요.');return;}
+    clearNotice();
+    ensureMap();
+    if(!state.ps){
+      setTimeout(findLocation,300);
+      return;
+    }
+    state.ps.keywordSearch(q,locationResultCallback,{size:5});
+  }
   function doCategorySearch(){
     if(!state.ps||state.lat==null)return;
     clearNotice();
-
     const location=new kakao.maps.LatLng(state.lat,state.lng);
-    const distanceSort = (kakao.maps.services.SortBy && kakao.maps.services.SortBy.DISTANCE)
-      ? kakao.maps.services.SortBy.DISTANCE
-      : undefined;
-    const opts={location,radius:Math.min(Math.max(Number(state.radius)||2000,1),20000),size:15};
-    if(distanceSort) opts.sort=distanceSort;
-
+    const sortDistance=(kakao.maps.services.SortBy&&kakao.maps.services.SortBy.DISTANCE)?kakao.maps.services.SortBy.DISTANCE:'distance';
+    const opts={location,radius:Math.min(Math.max(Number(state.radius)||2000,100),20000),sort:sortDistance,size:15};
     const q=$('query').value.trim();
-    state.searchRetried=false;
-    state.searchMode=q ? 'keyword'
-      : (state.category==='FD6'||state.category==='CE7' ? 'category' : 'category-keyword');
-    state.searchQuery=q || state.category;
-
     if(q){
-      // 직접 입력 검색은 일반 키워드 검색을 사용합니다.
+      state.searchMode='direct';
+      state.searchQuery=q;
       state.ps.keywordSearch(q,cb,opts);
-    }else if(state.category==='FD6'){
-      state.ps.categorySearch('FD6',cb,opts);
-    }else if(state.category==='CE7'){
-      state.ps.categorySearch('CE7',cb,opts);
-    }else{
-      // 카카오에는 한식/고기/일식/중식/치킨/분식 전용 category code가 없습니다.
-      // 따라서 음식점(FD6)으로 제한한 키워드 검색을 사용합니다.
-      const keyword = state.category + ' 음식점';
-      state.searchQuery=keyword;
-      state.ps.keywordSearch(keyword,cb,{...opts,category_group_code:'FD6'});
+      return;
     }
+    state.searchMode='category';
+    const keywordMap={FD6:'음식점',CE7:'카페',한식:'한식 음식점',고기:'고기 음식점',일식:'일식 음식점',중식:'중식 음식점',치킨:'치킨 음식점',분식:'분식 음식점'};
+    state.searchQuery=keywordMap[state.category]||'음식점';
+    state.ps.keywordSearch(state.searchQuery,cb,opts);
   }
   function cb(data,status,pagination){
     if(status!==kakao.maps.services.Status.OK){
-      const zero=status===kakao.maps.services.Status.ZERO_RESULT ||
-        (kakao.maps.services.Status.RESULT_NOT_FOUND && status===kakao.maps.services.Status.RESULT_NOT_FOUND);
-
-      if(zero){
-        state.results=[];
-        renderResults();
-        return;
-      }
-
-      // 일부 SDK/환경에서 거리 정렬 옵션 처리 중 ERROR가 날 수 있으므로
-      // 같은 검색을 정렬 옵션 없이 한 번 자동 재시도합니다.
-      if(status===kakao.maps.services.Status.ERROR && !state.searchRetried && state.ps && state.lat!=null){
-        state.searchRetried=true;
-        const retryLocation=new kakao.maps.LatLng(state.lat,state.lng);
-        const retryOpts={location:retryLocation,radius:Math.min(Math.max(Number(state.radius)||2000,1),20000),size:15};
-        const keyword=state.searchQuery||'';
-        if(state.searchMode==='category'){
-          state.ps.categorySearch(state.category,cb,retryOpts);
-        }else if(state.searchMode==='category-keyword'){
-          state.ps.keywordSearch(keyword,cb,{...retryOpts,category_group_code:'FD6'});
-        }else{
-          state.ps.keywordSearch(keyword,cb,retryOpts);
-        }
-        return;
-      }
-
+      if(status===kakao.maps.services.Status.ZERO_RESULT){state.results=[];renderResults();return;}
       notice('카카오 장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
-
-    state.results=(Array.isArray(data)?data:[]).filter(p=>
-      p.category_group_code==='FD6'||p.category_group_code==='CE7'
-    );
-
+    let rows=Array.isArray(data)?data:[];
+    const wanted=state.searchMode==='category'?state.category:null;
+    rows=rows.filter(p=>{
+      const code=String(p.category_group_code||'');
+      const cat=String(p.category_name||'');
+      if(state.searchMode==='direct') return code==='FD6'||code==='CE7';
+      if(wanted==='CE7') return code==='CE7'||/카페|커피|베이커리/.test(cat);
+      if(wanted==='FD6') return code==='FD6'||/음식|한식|고기|일식|중식|치킨|분식|식당|요리/.test(cat);
+      return code==='FD6';
+    });
+    state.results=rows;
     scoreAndSort();
     renderResults();
     clearMarkers();
@@ -275,16 +298,40 @@
     $('summary').textContent=`추천 후보 ${topCount}곳 · 주변 음식점 ${state.results.length}곳 · ${fmtDistance(state.radius)} 이내`;
   }
   function escapeHtml(s){return String(s).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
-  function search(){ if(state.lat==null){notice('먼저 “현재 위치 사용”을 눌러 위치 권한을 허용해 주세요.');return;} if(!state.ps){ensureMap();return;} doCategorySearch(); }
+  function search(){
+    if(state.lat==null){
+      ensureMap();
+      notice('현재 위치를 사용하거나 위쪽에서 원하는 지역을 먼저 찾아주세요.');
+      return;
+    }
+    if(!state.ps){ensureMap();return;}
+    doCategorySearch();
+  }
   function getLocation(){
-    if(!navigator.geolocation){notice('이 브라우저는 위치 기능을 지원하지 않습니다.');return;}
-    clearNotice();$('locState').textContent='현재 위치를 확인하는 중…';
-    navigator.geolocation.getCurrentPosition(pos=>{state.lat=pos.coords.latitude;state.lng=pos.coords.longitude;$('locState').textContent='현재 위치 확인 완료';ensureMap();},err=>{
-      $('locState').textContent='위치 권한이 필요합니다.';
-      notice(err.code===1?'위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.':'현재 위치를 가져오지 못했습니다. 다시 시도해 주세요.');
+    if(!navigator.geolocation){
+      notice('이 브라우저는 위치 기능을 지원하지 않습니다. 위쪽의 지역 검색을 이용해 주세요.');
+      return;
+    }
+    clearNotice();
+    $('locState').textContent='현재 위치를 확인하는 중…';
+    navigator.geolocation.getCurrentPosition(pos=>{
+      state.lat=pos.coords.latitude;
+      state.lng=pos.coords.longitude;
+      $('locState').textContent='현재 위치 확인 완료';
+      ensureMap();
+      setTimeout(()=>{drawUser();search();},0);
+    },err=>{
+      $('locState').textContent='위치 권한을 사용할 수 없습니다.';
+      notice(err.code===1?'위치 권한이 거부되었습니다. 위쪽에서 지역·주소를 직접 검색해 주세요.':'현재 위치를 가져오지 못했습니다. 위쪽에서 원하는 지역을 직접 검색해 주세요.');
     },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
   }
-  $('locBtn').onclick=getLocation;$('searchBtn').onclick=()=>{$('query').blur();search()};$('query').addEventListener('keydown',e=>{if(e.key==='Enter')search()});$('sort').onchange=renderResults;renderChips();
+  $('locBtn').onclick=getLocation;
+  $('locationSearchBtn').onclick=findLocation;
+  $('locationQuery').addEventListener('keydown',e=>{if(e.key==='Enter')findLocation()});
+  $('searchBtn').onclick=()=>{$('query').blur();search()};
+  $('query').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+  $('sort').onchange=renderResults;
+  renderChips();
 
   let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBar').classList.add('show')});$('installBtn').onclick=async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt=null;$('installBar').classList.remove('show')};
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=4').catch(()=>{});
