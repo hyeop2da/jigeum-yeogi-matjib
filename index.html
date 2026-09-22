@@ -73,7 +73,11 @@
   function clearNotice(){$('notice').classList.remove('show')}
   function fmtDistance(m){return m<1000?Math.round(m)+'m':(m/1000).toFixed(1)+'km'}
   function naverUrl(name,address){return 'https://search.naver.com/search.naver?where=nexearch&query='+encodeURIComponent(name+' '+address)}
-  function mapsUrl(place){return place.place_url||('https://map.kakao.com/?q='+encodeURIComponent(place.place_name))}
+  function mapsReviewUrl(place){
+    if(place.id) return 'https://place.map.kakao.com/'+encodeURIComponent(place.id)+'#comment';
+    if(place.place_url) return place.place_url.split('#')[0]+'#comment';
+    return 'https://map.kakao.com/?q='+encodeURIComponent(place.place_name);
+  }
   function renderChips(){
     $('radiusChips').innerHTML=radiusOpts.map(([t,v])=>`<button class="chip ${state.radius===v?'active':''}" data-radius="${v}">${t}</button>`).join('');
     $('categoryChips').innerHTML=cats.map(([t,v],i)=>`<button class="chip ${state.category===v?'active':''}" data-cat="${v}">${t}</button>`).join('');
@@ -310,7 +314,7 @@
     const topCount=Math.min(3,state.results.length);
     list.innerHTML=state.results.map((p,i)=>{
       const addr=p.road_address_name||p.address_name||'주소 정보 없음';
-      const nurl=naverUrl(p.place_name,addr); const kurl=mapsUrl(p);
+      const nurl=naverUrl(p.place_name,addr); const kurl=mapsReviewUrl(p);
       const rec=p.__recommendation;
       const rankBadge=i<topCount?`<span class="badge rank">⭐ 추천 후보 ${i+1}</span>`:'';
       const verified=`<span class="badge">✓ 실제 장소 데이터 확인</span>`;
@@ -323,7 +327,7 @@
         <div class="addr">${escapeHtml(addr)}</div>
         ${p.phone?`<div class="phone">☎ ${escapeHtml(p.phone)}</div>`:''}
         ${rankBadge} ${verified}
-        <div class="actions"><a class="action primary" href="${kurl}" target="_blank" rel="noopener">카카오맵 확인</a><a class="action" href="${nurl}" target="_blank" rel="noopener">네이버 후기 확인</a></div>
+        <div class="actions"><a class="action primary" href="${kurl}" target="_blank" rel="noopener">카카오 후기</a><a class="action" href="${nurl}" target="_blank" rel="noopener">네이버 후기</a></div>
       </article>`;
     }).join('');
     document.querySelectorAll('.card').forEach(el=>el.onclick=e=>{if(e.target.closest('a'))return;focusPlace(+el.dataset.index)});
