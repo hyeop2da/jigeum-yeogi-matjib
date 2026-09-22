@@ -172,11 +172,16 @@
     clearNotice();
     const opts={location:new kakao.maps.LatLng(state.lat,state.lng),radius:state.radius,sort:'distance',size:15};
     const q=$('query').value.trim();
-    const inferred=classifyQuery(q);
     if(q){
       state.ps.keywordSearch(q,cb,opts);
+    }else if(state.category==='FD6'){
+      state.ps.categorySearch('FD6',cb,opts);
+    }else if(state.category==='CE7'){
+      state.ps.categorySearch('CE7',cb,opts);
     }else{
-      state.ps.categorySearch(state.category||'FD6',cb,opts);
+      // Kakao의 장소 카테고리에는 한식/고기/일식/중식/치킨/분식 전용 코드가 없으므로
+      // 해당 이름을 키워드로 검색해 음식점 후보를 가져옵니다.
+      state.ps.keywordSearch(state.category,cb,opts);
     }
   }
   function cb(data,status,pagination){
