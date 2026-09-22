@@ -30,7 +30,7 @@
     @media(max-width:820px){.layout{grid-template-columns:1fr}.list{max-height:none}#map{height:360px}.listwrap{order:2}.mapwrap{order:1}}
   </style>
 </head>
-<body data-app-version="2026-09-22-review-app-v17">
+<body data-app-version="2026-09-22-kakao-app-v18">
 <div class="app">
   <header class="top">
     <div class="brand"><div class="logo">🍜</div><div><h1>지금 여기 맛집</h1><p class="sub">현재 위치에서 가까우면서 검색 조건에 잘 맞는 추천 후보를 찾아요.</p></div></div>
@@ -78,42 +78,6 @@
     if(id) return 'kakaomap://place?id='+encodeURIComponent(id);
     if(place&&place.place_url) return place.place_url;
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place&&place.place_name||'');
-  }
-  function mapsReviewUrl(place){
-    const id=String(place&&place.id||'').trim();
-    return id ? 'https://place.map.kakao.com/'+encodeURIComponent(id) : 'https://map.kakao.com/link/search/'+encodeURIComponent(place&&place.place_name||'');
-  }
-  async function kakaoReviewId(place){
-    const id=String(place&&place.id||'').trim();
-    if(!id) return null;
-    const target='https://place.map.kakao.com/commentlist/v/'+encodeURIComponent(id);
-    const proxy='https://r.jina.ai/'+target;
-    try{
-      const r=await fetch(proxy,{headers:{'Accept':'application/json'},cache:'no-store'});
-      if(!r.ok) return null;
-      const outer=await r.json();
-      const raw=typeof outer.content==='string'?outer.content:'';
-      let data=null;
-      try{data=JSON.parse(raw)}catch(e){
-        const m=raw.match(/\{[\s\S]*\}/);
-        if(m) try{data=JSON.parse(m[0])}catch(e2){}
-      }
-      const list=data&&data.comment&&Array.isArray(data.comment.list)?data.comment.list:[];
-      const first=list.find(v=>v&&(v.reviewid!==undefined||v.reviewId!==undefined||v.commentId!==undefined||v.id!==undefined));
-      if(!first) return null;
-      const rid=first.reviewid??first.reviewId??first.commentId??first.id;
-      return rid!=null?String(rid):null;
-    }catch(e){return null}
-  }
-  async function openKakaoReview(place){
-    const id=String(place&&place.id||'').trim();
-    if(!id){window.location.href=mapsReviewUrl(place);return;}
-    const rid=await kakaoReviewId(place);
-    if(rid){
-      window.location.href='http://m.map.kakao.com/scheme/place?id='+encodeURIComponent(id)+'&reviewid='+encodeURIComponent(rid)+'&openpage=review';
-      return;
-    }
-    window.location.href='kakaomap://place?id='+encodeURIComponent(id);
   }
 
   function renderChips(){
@@ -354,7 +318,6 @@
       const addr=p.road_address_name||p.address_name||'주소 정보 없음';
       const nurl=naverUrl(p.place_name,addr);
       const mapurl=mapsUrl(p);
-      const kurl=mapsReviewUrl(p);
       const rec=p.__recommendation;
       const rankBadge=i<topCount?`<span class="badge rank">⭐ 추천 후보 ${i+1}</span>`:'';
       const verified=`<span class="badge">✓ 실제 장소 데이터 확인</span>`;
@@ -369,21 +332,11 @@
         ${rankBadge} ${verified}
         <div class="actions">
           <a class="action primary" href="${mapurl}">🗺️ 카카오맵</a>
-          <a class="action kakao-review-btn" href="${kurl}">💬 카카오 후기</a>
           <a class="action" href="${nurl}" target="_blank" rel="noopener">📝 네이버 후기</a>
         </div>
       </article>`;
     }).join('');
     document.querySelectorAll('.card').forEach(el=>el.onclick=e=>{if(e.target.closest('a,button'))return;focusPlace(+el.dataset.index)});
-    document.querySelectorAll('.kakao-review-btn').forEach(el=>el.onclick=async e=>{
-      e.preventDefault();
-      const i=Number(el.closest('.card')?.dataset.index);
-      const place=state.results[i];
-      if(!place)return;
-      el.textContent='💬 후기 여는 중…';
-      await openKakaoReview(place);
-      setTimeout(()=>{el.textContent='💬 카카오 후기'},1500);
-    });
     $('summary').textContent=`추천 후보 ${topCount}곳 · 주변 음식점 ${state.results.length}곳 · ${fmtDistance(state.radius)} 이내`;
   }
   function escapeHtml(s){return String(s).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
