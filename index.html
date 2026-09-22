@@ -30,7 +30,7 @@
     @media(max-width:820px){.layout{grid-template-columns:1fr}.list{max-height:none}#map{height:360px}.listwrap{order:2}.mapwrap{order:1}}
   </style>
 </head>
-<body data-app-version="2026-09-22-review-v12">
+<body data-app-version="2026-09-22-review-v13">
 <div class="app">
   <header class="top">
     <div class="brand"><div class="logo">🍜</div><div><h1>지금 여기 맛집</h1><p class="sub">현재 위치에서 가까우면서 검색 조건에 잘 맞는 추천 후보를 찾아요.</p></div></div>
@@ -79,17 +79,20 @@
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
   }
   function mapsReviewUrl(place){
-    const id=String(place.id||'').trim();
-    if(id){
-      return 'https://place.map.kakao.com/m/'+encodeURIComponent(id)+'?service=search_m#comment';
-    }
+    // 카카오 Local API가 제공하는 현재 place_url을 그대로 기준으로 후기 섹션 앵커를 붙입니다.
+    // /m/{id}?service=search_m 같은 비공식/구형 경로는 사용하지 않습니다.
     const source=String(place.place_url||'').trim();
     if(source){
-      const clean=source.replace(/^https?:\/\//,'').replace(/^place\.map\.kakao\.com\//,'');
-      const match=clean.match(/^(?:m\/)?(\d+)/);
-      if(match) return 'https://place.map.kakao.com/m/'+match[1]+'?service=search_m#comment';
-      return source.split('#')[0]+'?service=search_m#comment';
+      try{
+        const u=new URL(source);
+        u.hash='comment';
+        return u.toString();
+      }catch(e){
+        return source.split('#')[0]+'#comment';
+      }
     }
+    const id=String(place.id||'').trim();
+    if(id) return 'https://place.map.kakao.com/'+encodeURIComponent(id)+'#comment';
     return 'https://map.kakao.com/link/search/'+encodeURIComponent(place.place_name||'');
   }
 
