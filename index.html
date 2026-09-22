@@ -78,7 +78,13 @@
     $('radiusChips').innerHTML=radiusOpts.map(([t,v])=>`<button class="chip ${state.radius===v?'active':''}" data-radius="${v}">${t}</button>`).join('');
     $('categoryChips').innerHTML=cats.map(([t,v],i)=>`<button class="chip ${state.category===v?'active':''}" data-cat="${v}">${t}</button>`).join('');
     document.querySelectorAll('[data-radius]').forEach(b=>b.onclick=()=>{state.radius=+b.dataset.radius;renderChips();search()});
-    document.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{state.category=b.dataset.cat;renderChips();search()});
+    document.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{
+      state.category=b.dataset.cat;
+      $('query').value='';
+      $('query').blur();
+      renderChips();
+      search();
+    });
   }
   function ensureMap(){
     if(state.map) return;
@@ -170,29 +176,76 @@
   function doCategorySearch(){
     if(!state.ps||state.lat==null)return;
     clearNotice();
-    const opts={location:new kakao.maps.LatLng(state.lat,state.lng),radius:state.radius,sort:'distance',size:15};
+
+    const location=new kakao.maps.LatLng(state.lat,state.lng);
+    const distanceSort = (kakao.maps.services.SortBy && kakao.maps.services.SortBy.DISTANCE)
+      ? kakao.maps.services.SortBy.DISTANCE
+      : undefined;
+    const opts={location,radius:Math.min(Math.max(Number(state.radius)||2000,1),20000),size:15};
+    if(distanceSort) opts.sort=distanceSort;
+
     const q=$('query').value.trim();
+    state.searchRetried=false;
+    state.searchMode=q ? 'keyword'
+      : (state.category==='FD6'||state.category==='CE7' ? 'category' : 'category-keyword');
+    state.searchQuery=q || state.category;
+
     if(q){
+      // 직접 입력 검색은 일반 키워드 검색을 사용합니다.
       state.ps.keywordSearch(q,cb,opts);
     }else if(state.category==='FD6'){
       state.ps.categorySearch('FD6',cb,opts);
     }else if(state.category==='CE7'){
       state.ps.categorySearch('CE7',cb,opts);
     }else{
-      // Kakao의 장소 카테고리에는 한식/고기/일식/중식/치킨/분식 전용 코드가 없으므로
-      // 해당 이름을 키워드로 검색해 음식점 후보를 가져옵니다.
-      state.ps.keywordSearch(state.category,cb,opts);
+      // 카카오에는 한식/고기/일식/중식/치킨/분식 전용 category code가 없습니다.
+      // 따라서 음식점(FD6)으로 제한한 키워드 검색을 사용합니다.
+      const keyword = state.category + ' 음식점';
+      state.searchQuery=keyword;
+      state.ps.keywordSearch(keyword,cb,{...opts,category_group_code:'FD6'});
     }
   }
   function cb(data,status,pagination){
     if(status!==kakao.maps.services.Status.OK){
-      if(status===kakao.maps.services.Status.ZERO_RESULT){state.results=[];renderResults();return;}
-      notice('카카오 장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');return;
+      const zero=status===kakao.maps.services.Status.ZERO_RESULT ||
+        (kakao.maps.services.Status.RESULT_NOT_FOUND && status===kakao.maps.services.Status.RESULT_NOT_FOUND);
+
+      if(zero){
+        state.results=[];
+        renderResults();
+        return;
+      }
+
+      // 일부 SDK/환경에서 거리 정렬 옵션 처리 중 ERROR가 날 수 있으므로
+      // 같은 검색을 정렬 옵션 없이 한 번 자동 재시도합니다.
+      if(status===kakao.maps.services.Status.ERROR && !state.searchRetried && state.ps && state.lat!=null){
+        state.searchRetried=true;
+        const retryLocation=new kakao.maps.LatLng(state.lat,state.lng);
+        const retryOpts={location:retryLocation,radius:Math.min(Math.max(Number(state.radius)||2000,1),20000),size:15};
+        const keyword=state.searchQuery||'';
+        if(state.searchMode==='category'){
+          state.ps.categorySearch(state.category,cb,retryOpts);
+        }else if(state.searchMode==='category-keyword'){
+          state.ps.keywordSearch(keyword,cb,{...retryOpts,category_group_code:'FD6'});
+        }else{
+          state.ps.keywordSearch(keyword,cb,retryOpts);
+        }
+        return;
+      }
+
+      notice('카카오 장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
     }
-    state.results=data.filter(p=>p.category_group_code==='FD6'||p.category_group_code==='CE7');
+
+    state.results=(Array.isArray(data)?data:[]).filter(p=>
+      p.category_group_code==='FD6'||p.category_group_code==='CE7'
+    );
+
     scoreAndSort();
     renderResults();
-    clearMarkers();drawUser();state.results.slice(0,15).forEach(addMarker);
+    clearMarkers();
+    drawUser();
+    state.results.slice(0,15).forEach(addMarker);
     if(state.results.length)state.map.setCenter(new kakao.maps.LatLng(state.lat,state.lng));
   }
   function renderResults(){
